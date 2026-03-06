@@ -1,14 +1,11 @@
 import inspect
 import json
+import pickle
 import uuid
 from typing import Optional, Any
 
 from job_hive.core import Status
-from job_hive.utils import (
-    import_attribute, get_now, 
-    safe_dumps_with_compression, 
-    safe_loads_with_compression
-)
+from job_hive.utils import import_attribute, get_now
 
 
 class Job:
@@ -71,34 +68,20 @@ class Job:
 
     @staticmethod
     def _loads(obj: dict) -> 'Job':
-        # 反序列化 args 和 kwargs（支持压缩）
-        args = safe_loads_with_compression(obj["args"]) if isinstance(obj["args"], bytes) else obj["args"]
-        kwargs = safe_loads_with_compression(obj["kwargs"]) if isinstance(obj["kwargs"], bytes) else obj["kwargs"]
-        
         job = Job(
             obj["func"],
-            *args,
-            **kwargs,
+            *obj["args"],
+            **obj["kwargs"],
         )
         job.job_id = obj["job_id"]
 
         for key in ["created_at", "ended_at", "started_at", "status", "result", "error"]:
-            value = obj.get(key, '')
-            # 对 result 和 error 进行反序列化（支持压缩）
-            if key in ("result", "error") and isinstance(value, bytes):
-                value = safe_loads_with_compression(value)
-            job.query[key] = value
+            job.query[key] = obj.get(key, '')
         return job
 
     @staticmethod
     def _dumps(obj: Any) -> bytes:
-        """安全序列化：使用 JSON + 压缩
-        
-        支持基本数据类型：str, int, float, bool, list, dict, tuple, None
-        大数据自动压缩，减少存储和传输开销
-        防止任意代码执行攻击
-        """
-        return safe_dumps_with_compression(obj)
+        return pickle.dumps(obj)
 
     @property
     def detail(self):
